@@ -102,8 +102,8 @@ def main():
         element = df.loc[idx]
         uspto_id, class_id, rxn_smi = element['id'], element['class'], element['reactants>reagents>production']
         
-        rxn_smi_new = remove_amap_not_in_product(rxn_smi)
-        rxn_smi_new, _ = remap_rxn_smi(rxn_smi_new)
+        rxn_smi_new = remove_amap_not_in_product(rxn_smi)   #移除不在产物p中的反应物r中的原子map
+        rxn_smi_new, _ = remap_rxn_smi(rxn_smi_new)         #重新map反应物r中的原子map
         new_dict['id'].append(uspto_id)
         new_dict['class'].append(class_id)
         new_dict['reactants>reagents>production'].append(rxn_smi_new)

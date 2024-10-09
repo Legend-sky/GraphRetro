@@ -16,3 +16,6 @@ scripts/dummy/*
 local_experiments/
 experiments/
 test_*
+
+build/
+dist/

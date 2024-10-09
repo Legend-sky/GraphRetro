@@ -1,4 +1,4 @@
-name: seq_gr
+name: GraphRetro
 channels:
   - pytorch
   - conda-forge

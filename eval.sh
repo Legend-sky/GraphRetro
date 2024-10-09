@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source activate seq_gr
+#source activate seq_gr
 EDITS_EXP="SingleEdit_10-02-2021--08-44-37"
 EDITS_STEP="epoch_156"
 LG_EXP="LGIndEmbed_18-02-2021--12-23-26"
