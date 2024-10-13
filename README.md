@@ -16,11 +16,11 @@ If conda is not installed, download the [Miniconda installer](https://docs.conda
 If conda is installed, run the following commands:
 
 ```
-echo 'export SEQ_GRAPH_RETRO=/path/to/dir/' >> ~/.bashrc
+echo 'export SEQ_GRAPH_RETRO=/path/to/dir/' >> ~/.bashrc    #将SEQ_GRAPH_RETRO作为系统变量，这里我/path/to/dir设置为/home/wuhexing/GraphRetro/
 source ~/.bashrc
 
 conda env create -f environment.yml
-source activate seq_gr
+source activate seq_gr  #重新命名为GraphRetro
 python setup.py develop(or install)
 ```
 

@@ -41,4 +41,4 @@ print_every:
 eval_every:
     value: 700
 epochs:
-    value: 100
+    value: 200

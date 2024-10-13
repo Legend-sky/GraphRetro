@@ -181,10 +181,10 @@ def get_reaction_info(rxn_smi: str, kekulize: bool = False, use_h_labels: bool =
         return None
 
     rxn_core, core_edits = get_reaction_core(r, p, kekulize=kekulize, use_h_labels=use_h_labels)
-
+    #得到产物键的信息和原子标号信息
     prod_bonds = get_bond_info(prod_mol)
     p_amap_idx = {atom.GetAtomMapNum(): atom.GetIdx() for atom in prod_mol.GetAtoms()}
-
+    #这里给反应物中每个原子标上序号，为了更好地获取反应物的信息
     max_amap = max([atom.GetAtomMapNum() for atom in reac_mol.GetAtoms()])
     for atom in reac_mol.GetAtoms():
         if atom.GetAtomMapNum() == 0:

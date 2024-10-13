@@ -42,7 +42,7 @@ class MPNLayer(nn.Module):
     def _build_layers(self) -> None:
         """Build layers associated with the MPNLayer."""
         self.W_o = nn.Sequential(nn.Linear(self.node_fdim + self.hsize, self.hsize), nn.ReLU())
-        if self.rnn_type == 'gru':
+        if self.rnn_type == 'gru':  #默认为这个
             self.rnn = GRU(input_size=self.node_fdim + self.edge_fdim,
                            hsize=self.hsize,
                            depth=self.depth,

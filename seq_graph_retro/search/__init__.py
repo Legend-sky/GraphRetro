@@ -79,7 +79,7 @@ class BeamSearch:
         self.beam_width = beam_width
         self.max_edits = max_edits
 
-        if hasattr(self.model, 'encoder_name'):
+        if hasattr(self.model, 'encoder_name'): #hasattr函数用于检查一个对象是否具有指定的属性
             if self.model.encoder_name == 'GraphFeatEncoder':
                 self.directed = True
             elif self.model.encoder_name == 'WLNEncoder':

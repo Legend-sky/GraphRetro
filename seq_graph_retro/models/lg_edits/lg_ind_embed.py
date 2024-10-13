@@ -50,7 +50,7 @@ class LGIndEmbed(nn.Module):
     def _build_layers(self) -> None:
         """Builds the layers in the classifier."""
         config = self.config
-        if self.encoder_name == 'GraphFeatEncoder':
+        if self.encoder_name == 'GraphFeatEncoder': #图特征encoder
             self.encoder = GraphFeatEncoder(node_fdim=config['n_atom_feat'],
                                             edge_fdim=config['n_bond_feat'],
                                             rnn_type=config['rnn_type'],
