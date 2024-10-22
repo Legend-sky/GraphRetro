@@ -18,19 +18,21 @@ def prepare_lg_labels(lg_dict: Dict, lg_data: List) -> torch.Tensor:
     lg_data: List
         List of lists containing the leaving groups
     """
-    pad_idx, unk_idx = lg_dict["<pad>"], lg_dict["<unk>"]
-    lg_labels = [[lg_dict.get(lg_group, unk_idx) for lg_group in labels] for labels in lg_data]
+    pad_idx, unk_idx = lg_dict["<pad>"], lg_dict["<unk>"]   #获取离去基团的pad和unk索引
+    lg_labels = [[lg_dict.get(lg_group, unk_idx) for lg_group in labels] for labels in lg_data]  #将离去基团的列表转换为索引列表
 
     lengths = [len(lg) for lg in lg_labels]
     labels = torch.full(size=(len(lg_labels), max(lengths)), fill_value=pad_idx, dtype=torch.long)
     for i, lgs in enumerate(lg_labels):
         labels[i, :len(lgs)] = torch.tensor(lgs)
+    #labels是一个 PyTorch 张量，包含了所有离去基团的索引。张量的形状是 (N, max_length)，其中 N 是 lg_data 中列表的数量，max_length 是所有列表中最长的长度。
+    # 如果某个反应的离开基团数量少于 max_length，则使用 pad_idx 来填充剩余的位置。
+    #lengths是一个列表，包含了每个反应的离去基团的实际数量。
     return labels, lengths
 
 def pack_graph_feats(graph_batch: List[Any], directed: bool, use_rxn_class: bool = False,
                      return_graphs: bool = False) -> Tuple[torch.Tensor, List[Tuple[int]]]:
     """Prepare graph tensors.
-
     Parameters
     ----------
     graph_batch: List[Any],
@@ -42,73 +44,73 @@ def pack_graph_feats(graph_batch: List[Any], directed: bool, use_rxn_class: bool
     return_graphs: bool, default False,
         Whether to return the graphs
     """
-    if directed:
-        fnode = [get_atom_features(Chem.Atom("*"), use_rxn_class=use_rxn_class, rxn_class=0)]
-        fmess = [[0,0] + [0] * BOND_FDIM]
-        agraph, bgraph = [[]], [[]]
-        atoms_in_bonds = [[]]
+    if directed:    #有向图，这里为True
+        fnode = [get_atom_features(Chem.Atom("*"), use_rxn_class=use_rxn_class, rxn_class=0)]   #获取原子特征的向量,98*1
+        fmess = [[0,0] + [0] * BOND_FDIM]   #获取键特征的向量,8*1
+        agraph, bgraph = [[]], [[]]  #原子图和键图
+        atoms_in_bonds = [[]]   #原子键的列表
 
-        atom_scope, bond_scope = [], []
-        edge_dict = {}
-        all_G = []
+        atom_scope, bond_scope = [], [] #原子范围和键范围
+        edge_dict = {}  #边的字典
+        all_G = []  #所有图
 
-        for bid, graph in enumerate(graph_batch):
-            mol = graph.mol
+        for bid, graph in enumerate(graph_batch):   #这里bid为0，graph为RxnElement对象
+            mol = graph.mol  #获取RxnElement对象的mol属性
             assert mol.GetNumAtoms() == len(graph.G_dir)
-            atom_offset = len(fnode)
-            bond_offset = len(atoms_in_bonds)
+            atom_offset = len(fnode)    #原子偏移，1
+            bond_offset = len(atoms_in_bonds)   #键偏移,1
 
             bond_to_tuple = {bond.GetIdx(): tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())))
                              for bond in mol.GetBonds()}
-            tuple_to_bond = {val: key for key, val in bond_to_tuple.items()}
+            tuple_to_bond = {val: key for key, val in bond_to_tuple.items()}    #键的索引和键的元组的映射,形式为:{(0,1):0,(1,2):1,...}
 
-            atom_scope.append(graph.update_atom_scope(atom_offset))
-            bond_scope.append(graph.update_bond_scope(bond_offset))
+            atom_scope.append(graph.update_atom_scope(atom_offset)) #[(1,30)]，第一维加上了98的偏移
+            bond_scope.append(graph.update_bond_scope(bond_offset)) #[(1,33)]
 
-            G = nx.convert_node_labels_to_integers(graph.G_dir, first_label=atom_offset)
-            all_G.append(G)
-            fnode.extend( [None for v in G.nodes] )
+            G = nx.convert_node_labels_to_integers(graph.G_dir, first_label=atom_offset)    #将有向图的节点标签转换为整数
+            all_G.append(G)   #将有向图添加到all_G中
+            fnode.extend( [None for v in G.nodes] ) #往后添加了G的节点数个None，也就是30个None
 
-            for v, attr in G.nodes(data='label'):
-                G.nodes[v]['batch_id'] = bid
+            for v, attr in G.nodes(data='label'):   #v是原子序号，attr是原子标签，这里是C，H，O，N，Cl等
+                G.nodes[v]['batch_id'] = bid    #为0
                 fnode[v] = get_atom_features(mol.GetAtomWithIdx(v-atom_offset),
                                              use_rxn_class=use_rxn_class,
-                                             rxn_class=graph.rxn_class)
+                                             rxn_class=graph.rxn_class) #每个原子都有一个98*1的特征向量,最终变为98*31的特征向量
                 agraph.append([])
 
-            bond_comp = [None for _ in range(mol.GetNumBonds())]
-            for u, v, attr in G.edges(data='label'):
+            bond_comp = [None for _ in range(mol.GetNumBonds())]    #键的列表，1*33
+            for u, v, attr in G.edges(data='label'):    #u,v是原子序号，attr是键标签
                 bond_feat = get_bond_features(mol.GetBondBetweenAtoms(u-atom_offset, v-atom_offset)).tolist()
 
                 bond = sorted([u, v])
                 mess_vec = [u, v] + bond_feat
-                if [v, u] not in bond_comp:
-                    idx_to_add = tuple_to_bond[(u-atom_offset, v-atom_offset)]
-                    bond_comp[idx_to_add] = [u, v]
+                if [v, u] not in bond_comp: #如果[v,u]不在键的列表中,键是两个原子之间的连接，它不区分方向，即键 [v, u] 和 [u, v] 表示的是同一条键
+                    idx_to_add = tuple_to_bond[(u-atom_offset, v-atom_offset)]  #获取键的索引
+                    bond_comp[idx_to_add] = [u, v]  #将键的两个原子添加到键的列表中
 
-                fmess.append(mess_vec)
+                fmess.append(mess_vec)  #每个键都有一个8*1的特征向量，最终变成8*67的特征向量
                 edge_dict[(u, v)] = eid = len(edge_dict) + 1
                 G[u][v]['mess_idx'] = eid
-                agraph[v].append(eid)
+                agraph[v].append(eid)   #将键的索引添加到原子的邻接表中
                 bgraph.append([])
             atoms_in_bonds.extend(bond_comp)
 
             for u, v in G.edges:
                 eid = edge_dict[(u, v)]
-                for w in G.predecessors(u):
+                for w in G.predecessors(u):  #获取键的前驱节点
                     if w == v: continue
-                    bgraph[eid].append( edge_dict[(w, u)] )
+                    bgraph[eid].append( edge_dict[(w, u)] )  #将键的前驱节点添加到键的邻接表中
 
-        fnode = torch.tensor(fnode, dtype=torch.float)
-        fmess = torch.tensor(fmess, dtype=torch.float)
-        atoms_in_bonds = create_pad_tensor(atoms_in_bonds).long()
-        agraph = create_pad_tensor(agraph)
-        bgraph = create_pad_tensor(bgraph)
+        fnode = torch.tensor(fnode, dtype=torch.float)  #每个原子都有一个98*1的特征向量,最终变为98*31的特征向量
+        fmess = torch.tensor(fmess, dtype=torch.float)  #每个键都有一个8*1的特征向量，最终变成8*67的特征向量
+        atoms_in_bonds = create_pad_tensor(atoms_in_bonds).long()   #33条键，每条键有两个原子，再加一条初始[0,0],所以是34*2
+        agraph = create_pad_tensor(agraph)      #30个原子，每个有多少个邻接原子，不够的按最大的补0，再加一个初始，所以是31*3
+        bgraph = create_pad_tensor(bgraph)      #66个键，每个键有多少个邻接键，不够的按最大的补0，再加一个初始，所以是67*3
 
         graph_tensors = (fnode, fmess, agraph, bgraph, atoms_in_bonds)
-        scopes = (atom_scope, bond_scope)
+        scopes = (atom_scope, bond_scope)   #atom_scope:[(1,30)]，第一维加上了98的偏移；bond_scope:[(1,33)]
 
-        if return_graphs:
+        if return_graphs:   #False
             return graph_tensors, scopes, nx.union_all(all_G)
         else:
             return graph_tensors, scopes
@@ -172,7 +174,7 @@ def pack_graph_feats(graph_batch: List[Any], directed: bool, use_rxn_class: bool
         else:
             return graph_tensors, scopes
 
-def tensorize_bond_graphs(graph_batch, directed: bool, use_rxn_class: False,
+def tensorize_bond_graphs(graph_batch, directed: bool, use_rxn_class: False,    
                           return_graphs: bool = False):
     if directed:
         edge_dict = {}

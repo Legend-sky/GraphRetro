@@ -20,56 +20,56 @@ MODEL_ATTRS = {
     'lg_classifier': (LGClassifier, LGClassifierDataset, LGEvalDataset, True),
     'lg_ind': (LGIndEmbed, LGClassifierDataset, LGEvalDataset, True)
 }
-
+#模型参数
 def build_edits_config(loaded_config):
     model_config = {}
     config = {}
-    if loaded_config.get('use_rxn_class', False):
+    if loaded_config.get('use_rxn_class', False):   #如果use_rxn_class存在且为True，则执行下面，否则为False
         config['n_atom_feat'] = ATOM_FDIM + len(RXN_CLASSES)
     else:
         config['n_atom_feat'] = ATOM_FDIM
-    config['n_bond_feat'] = BOND_FDIM
-    config['n_bin_feat'] = BINARY_FDIM
-    config['rnn_type'] = loaded_config['rnn_type']
-    config['mpn_size'] = loaded_config['mpn_size']
-    config['mlp_size'] = loaded_config['mlp_size']
-    config['depth'] = loaded_config['depth']
+    config['n_bond_feat'] = BOND_FDIM   #键特征，为6
+    config['n_bin_feat'] = BINARY_FDIM  #11
+    config['rnn_type'] = loaded_config['rnn_type']  #gru
+    config['mpn_size'] = loaded_config['mpn_size']  #256
+    config['mlp_size'] = loaded_config['mlp_size']  #512
+    config['depth'] = loaded_config['depth']    #10
     config['bias'] = False
-    config['edit_loss'] = loaded_config['loss_type']
-    if 'n_mt_blocks' in loaded_config:
+    config['edit_loss'] = loaded_config['loss_type']    #softmax
+    if 'n_mt_blocks' in loaded_config:  #not in
         config['n_mt_blocks'] = loaded_config['n_mt_blocks']
 
-    if loaded_config['edits_type'] == 'bond_edits':
-        bs_outdim = len(BOND_FLOATS)
+    if loaded_config['edits_type'] == 'bond_edits': #True
+        bs_outdim = len(BOND_FLOATS)    #键的种类，长度为5
     elif loaded_config['edits_type'] == 'bond_disconn':
         bs_outdim = 1
     else:
         raise ValueError()
 
-    config['bs_outdim'] = bs_outdim
-    if loaded_config.get("propagate_logits", False):
+    config['bs_outdim'] = bs_outdim #5
+    if loaded_config.get("propagate_logits", False):    #True
         if loaded_config.get('use_rxn_class', False):
             config['bond_label_feat'] = ATOM_FDIM + 1 + 2 * (BOND_FDIM-1) + len(RXN_CLASSES)
-        else:
+        else:   #不使用use_rxn_class
             config['bond_label_feat'] = ATOM_FDIM + 1 + 2 * (BOND_FDIM-1)
-    config['dropout_mlp'] = loaded_config['dropout_mlp']
-    config['dropout_mpn'] = loaded_config['dropout_mpn']
-    config['pos_weight'] = loaded_config['pos_weight']
+    config['dropout_mlp'] = loaded_config['dropout_mlp']    #0.3
+    config['dropout_mpn'] = loaded_config['dropout_mpn']    #0.15
+    config['pos_weight'] = loaded_config['pos_weight']      #5.0
 
     toggles = {}
-    toggles['use_attn'] = loaded_config.get('use_attn', False)
-    toggles['use_rxn_class'] = loaded_config.get('use_rxn_class', False)
-    toggles['use_h_labels'] = loaded_config.get('use_h_labels', True)
-    toggles['use_prod'] = loaded_config.get('use_prod_edits', False)
-    toggles['propagate_logits'] = loaded_config.get('propagate_logits', False)
-    toggles['use_res'] = loaded_config.get('use_res', False)
+    toggles['use_attn'] = loaded_config.get('use_attn', False)  #False
+    toggles['use_rxn_class'] = loaded_config.get('use_rxn_class', False)    #False
+    toggles['use_h_labels'] = loaded_config.get('use_h_labels', True)   #True
+    toggles['use_prod'] = loaded_config.get('use_prod_edits', False)    #True
+    toggles['propagate_logits'] = loaded_config.get('propagate_logits', False)  #True
+    toggles['use_res'] = loaded_config.get('use_res', False)    #False
 
-    if 'n_heads' in loaded_config:
+    if 'n_heads' in loaded_config:  #not in
         config['n_heads'] = loaded_config['n_heads']
 
     model_config['config'] = config
     model_config['toggles'] = toggles
-    return model_config
+    return model_config #返回模型的配置参数
 
 def build_shared_edit_config(loaded_config):
     model_config = {}
@@ -242,16 +242,16 @@ CONFIG_FNS = {
 }
 
 def build_model(loaded_config, device='cpu'):
-    config_fn = CONFIG_FNS.get(loaded_config['model'])
+    config_fn = CONFIG_FNS.get(loaded_config['model'])  #build_edits_config
     model_config = config_fn(loaded_config)
 
-    if loaded_config['mpnn'] == 'graph_feat':
+    if loaded_config['mpnn'] == 'graph_feat':   #为这个
         encoder_name = 'GraphFeatEncoder'
     elif loaded_config['mpnn'] == 'wln':
         encoder_name = 'WLNEncoder'
     elif loaded_config['mpnn'] == 'gtrans':
         encoder_name = 'GTransEncoder'
 
-    model_class = MODEL_ATTRS.get(loaded_config['model'])[0]
+    model_class = MODEL_ATTRS.get(loaded_config['model'])[0]    #SingleEdit
     model = model_class(**model_config, encoder_name=encoder_name, device=device)
     return model

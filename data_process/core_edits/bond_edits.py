@@ -33,14 +33,14 @@ def process_batch(edit_graphs, mol_list, args):
         lg_vocab_file += "/without_h_labels/lg_vocab.txt"
 
     lg_vocab = Vocab(joblib.load(lg_vocab_file))
-    _, lg_groups, _ = extract_leaving_groups(mol_list)
+    _, lg_groups, _ = extract_leaving_groups(mol_list)  #lg_groups表示每条反应可能对应的离去基团
 
     mol_attrs = ['prod_mol', 'frag_mol']
-    if args.use_h_labels:
+    if args.use_h_labels:   #True
         label_attrs = ['edit_label', 'h_label']
     else:
         label_attrs = ['edit_label', 'done_label']
-
+    #获得'prod_mol', 'frag_mol'，'edit_label', 'h_label'等信息
     attributes = [graph.get_attributes(mol_attrs=mol_attrs, label_attrs=label_attrs) for graph in edit_graphs]
     prod_batch, frag_batch, edit_labels = list(zip(*attributes))
 
@@ -53,12 +53,13 @@ def process_batch(edit_graphs, mol_list, args):
         directed = True
     elif args.mpnn == 'wln':
         directed = False
-
-    prod_inputs = pack_graph_feats(prod_batch, directed=directed, use_rxn_class=args.use_rxn_class)
+    #将分子图转换为可以被神经网络处理的张量形式
+    prod_inputs = pack_graph_feats(prod_batch, directed=directed, use_rxn_class=args.use_rxn_class) #directed=True
     frag_inputs = pack_graph_feats(frag_batch, directed=directed, use_rxn_class=args.use_rxn_class)
     lg_labels, lengths = prepare_lg_labels(lg_vocab, lg_groups)
 
-    if args.parse_bond_graph:
+    if args.parse_bond_graph:   #True
+        #将一批化学分子的键图（bond graphs）转换成张量（tensors）
         bond_graph_inputs = tensorize_bond_graphs(prod_batch, directed=directed, use_rxn_class=args.use_rxn_class)
         return prod_inputs, edit_labels, frag_inputs, lg_labels, lengths, bond_graph_inputs
     return prod_inputs, edit_labels, frag_inputs, lg_labels, lengths, None
@@ -79,7 +80,7 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
         base_file = os.path.join(args.data_dir, f"{mode}", "h_labels", args.info_file)
     else:
         base_file = os.path.join(args.data_dir, f"{mode}", "without_h_labels", args.info_file)
-
+    #加载info_all信息
     info_all = []
     for shard_num in range(5):
         shard_file = base_file + f"-shard-{shard_num}"
@@ -88,22 +89,22 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
     bond_edits_graphs = []
     mol_list = []
 
-    if args.augment:
+    if args.augment:    #False
         save_dir = os.path.join(args.data_dir, f"{mode}_aug")
     else:
         save_dir = os.path.join(args.data_dir, f"{mode}")
 
-    if args.use_h_labels:
+    if args.use_h_labels:   #True
         save_dir = os.path.join(save_dir, "h_labels")
     else:
         save_dir = os.path.join(save_dir, "without_h_labels")
 
-    if args.use_rxn_class:
+    if args.use_rxn_class:  #False
         save_dir = os.path.join(save_dir, "with_rxn", "bond_edits")
     else:
         save_dir = os.path.join(save_dir, "without_rxn", "bond_edits")
 
-    save_dir = os.path.join(save_dir, args.mpnn)
+    save_dir = os.path.join(save_dir, args.mpnn)    #mpnn=graph_feat
     os.makedirs(save_dir, exist_ok=True)
 
     num_batches = 0
@@ -115,7 +116,7 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
         products = get_mol(p)
 
         assert len(bond_edits_graphs) == len(mol_list)
-        if (len(mol_list) % args.batch_size == 0) and len(mol_list):
+        if (len(mol_list) % args.batch_size == 0) and len(mol_list):    #每32个数据储存一个batch
             print(f"Saving after {total_examples}")
             sys.stdout.flush()
             batch_tensors = process_batch(bond_edits_graphs, mol_list, args)
@@ -138,7 +139,7 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
             print()
             sys.stdout.flush()
             continue
-
+        #生成断键后的frag
         fragments = apply_edits_to_mol(Chem.Mol(products), reaction_info.core_edits)
 
         if (fragments is None) or (fragments.GetNumAtoms() <=1):
@@ -154,16 +155,16 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
             continue
 
         tmp_frag = MultiElement(mol=Chem.Mol(fragments)).mols
-        fragments = Chem.Mol()
+        fragments = Chem.Mol()  #初始化了一个空的分子对象fragments，它将被用来合并其他分子
         for mol in tmp_frag:
             fragments = Chem.CombineMols(fragments, mol)
 
-        if len(reaction_info.core_edits) == 1:
+        if len(reaction_info.core_edits) == 1:  #只考虑有一个键变化的情况
             edit = reaction_info.core_edits[0]
             a1, a2, b1, b2 = edit.split(":")
-
+            #b1表示产物键的类型，b2表示反应物键的类型，一般都是大于等于0的
             if float(b1) and float(b2) >= 0:
-                bond_edits_graph = BondEditsRxn(prod_mol=Chem.Mol(products),
+                bond_edits_graph = BondEditsRxn(prod_mol=Chem.Mol(products),    #信息都在类中
                                                 frag_mol=Chem.Mol(fragments),
                                                 reac_mol=Chem.Mol(reactants),
                                                 edits_to_apply=[edit],
@@ -183,7 +184,7 @@ def parse_bond_edits_forward(args: Any, mode: str = 'train') -> None:
 
     print(f"All {mode} reactions complete.")
     sys.stdout.flush()
-
+    #保存最后一个可能不满32个数据的batch
     assert len(bond_edits_graphs) == len(mol_list)
     batch_tensors = process_batch(bond_edits_graphs, mol_list, args)
     torch.save(batch_tensors, os.path.join(save_dir, f"batch-{num_batches}.pt"))

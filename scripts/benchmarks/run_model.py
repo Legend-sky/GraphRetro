@@ -58,13 +58,13 @@ def run_model(config):
         aug_suffix = "_aug"
     else:
         aug_suffix = ""
-
+    #加载训练模型
     model = build_model(config, device=DEVICE)
     print(f"Converting model to device: {DEVICE}")
     sys.stdout.flush()
     model.to(DEVICE)
 
-    if config.get('restore_enc_from', None):
+    if config.get('restore_enc_from', None):    #None
         ckpt_id = config.get("enc_ckpt", "best_model")
         loaded = torch.load(os.path.join(config['out_dir'], "wandb", config['restore_enc_from'], "files",
                                          f"{ckpt_id}.pt"), map_location=DEVICE)
@@ -93,8 +93,8 @@ def run_model(config):
     print(f"Device used: {DEVICE}")
     sys.stdout.flush()
 
-    _, train_dataset_class, eval_dataset_class, use_labels = MODEL_ATTRS.get(config['model'])
-    model_dir_name = get_model_dir(config['model'])
+    _, train_dataset_class, eval_dataset_class, use_labels = MODEL_ATTRS.get(config['model'])   #对应(SingleEdit, SingleEditDataset, EditsEvalDataset, False)
+    model_dir_name = get_model_dir(config['model']) #'bond_edits'
 
     if config.get('use_h_labels', True):
         train_dir = os.path.join(config['data_dir'], "train" + aug_suffix, "h_labels")
@@ -107,10 +107,10 @@ def run_model(config):
         train_dir = os.path.join(train_dir, "with_rxn", model_dir_name)
     else:
         train_dir = os.path.join(train_dir, "without_rxn", model_dir_name)
-
+    #加载训练数据
     train_dataset = train_dataset_class(data_dir=train_dir,
                                         mpnn=config['mpnn'])
-
+    #加载验证数据
     if eval_dataset_class is not None:
         eval_dataset = eval_dataset_class(data_dir=eval_dir,
                                               data_file=config['info_file'],
@@ -131,7 +131,9 @@ def run_model(config):
 
     trainer = Trainer(model=model, print_every=config['print_every'],
                       eval_every=config['eval_every'])
+    #创建Adam优化器
     trainer.build_optimizer(learning_rate=config['lr'], finetune_encoder=False)
+    #创建不同类型的学习率调度器
     trainer.build_scheduler(type=config['scheduler_type'], anneal_rate=config['anneal_rate'],
                             patience=config['patience'], thresh=config['metric_thresh'])
     trainer.train_epochs(train_data, eval_data, config['epochs'],
@@ -163,7 +165,7 @@ def sweep(args):
     for key, value in tmp_dict.items():
         loaded_config[key] = value
 
-    # init wandb
+    # init wandb,允许参数的改变
     wandb.init(allow_val_change=True, dir=args.out_dir)
 
     # update wandb config
@@ -200,7 +202,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.out_dir):
        os.mkdir(args.out_dir)
 
-    if args.sweep:
+    if args.sweep:  #False
         sweep(args)
     else:
         main(args)

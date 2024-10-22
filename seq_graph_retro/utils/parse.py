@@ -71,20 +71,8 @@ def align_kekule_pairs(r: str, p: str) -> Tuple[Chem.Mol, Chem.Mol]:
 
     return reac_mol.GetMol(), prod_mol
 
+#获取给定反应的反应和编辑中心
 def get_reaction_core(r: str, p: str, kekulize: bool = False, use_h_labels: bool = False) -> Tuple[Set, List]:
-    """Get the reaction core and edits for given reaction
-
-    Parameters
-    ----------
-    r: str,
-        SMILES string representing the reactants
-    p: str,
-        SMILES string representing the product
-    kekulize: bool,
-        Whether to kekulize molecules to fetch minimal set of edits
-    use_h_labels: bool,
-        Whether to use change in hydrogen counts in edits
-    """
     reac_mol = get_mol(r)
     prod_mol = get_mol(p)
 
@@ -93,23 +81,25 @@ def get_reaction_core(r: str, p: str, kekulize: bool = False, use_h_labels: bool
 
     if kekulize:
         reac_mol, prod_mol = align_kekule_pairs(r, p)
-
+    #得到产物键的信息和原子标号信息
     prod_bonds = get_bond_info(prod_mol)
     p_amap_idx = {atom.GetAtomMapNum(): atom.GetIdx() for atom in prod_mol.GetAtoms()}
 
+    #这里给反应物中每个原子标上序号，为了更好地获取反应物中键的信息
     max_amap = max([atom.GetAtomMapNum() for atom in reac_mol.GetAtoms()])
     for atom in reac_mol.GetAtoms():
         if atom.GetAtomMapNum() == 0:
             atom.SetAtomMapNum(max_amap + 1)
             max_amap += 1
-
+    #得到反应物键的信息和原子标号信息
     reac_bonds = get_bond_info(reac_mol)
     reac_amap = {atom.GetAtomMapNum(): atom.GetIdx() for atom in reac_mol.GetAtoms()}
 
     rxn_core = set()
     core_edits = []
 
-    for bond in prod_bonds:
+    for bond in prod_bonds: #遍历product中的所有键
+        #产物中的键在反应物中，并且键的类型不相等，说明该键类型改变了，更新到core_edits和rxn_core中
         if bond in reac_bonds and prod_bonds[bond][0] != reac_bonds[bond][0]:
             a_start, a_end = bond
             prod_bo, reac_bo = prod_bonds[bond][0], reac_bonds[bond][0]
@@ -118,7 +108,7 @@ def get_reaction_core(r: str, p: str, kekulize: bool = False, use_h_labels: bool
             edit = f"{a_start}:{a_end}:{prod_bo}:{reac_bo}"
             core_edits.append(edit)
             rxn_core.update([a_start, a_end])
-
+        #产物中的键不在反应物中，说明该键断开了，更新到core_edits和rxn_core中
         if bond not in reac_bonds:
             a_start, a_end = bond
             reac_bo = 0.0
@@ -129,10 +119,12 @@ def get_reaction_core(r: str, p: str, kekulize: bool = False, use_h_labels: bool
             core_edits.append(edit)
             rxn_core.update([a_start, a_end])
 
-    for bond in reac_bonds:
+    for bond in reac_bonds: #遍历反应物的键
+        #如果反应物中有键不再产物中，说明是新加入的键
         if bond not in prod_bonds:
             amap1, amap2 = bond
-
+            #此时说明新加的键两边的原子都在产物中，说明是合键，也加入core_edits和rxn_core中
+            #这里reactions中多出的键就不需要了，因为不涉及products中的键
             if (amap1 in p_amap_idx) and (amap2 in p_amap_idx):
                 a_start, a_end = sorted([amap1, amap2])
                 reac_bo = reac_bonds[bond][0]
@@ -140,14 +132,14 @@ def get_reaction_core(r: str, p: str, kekulize: bool = False, use_h_labels: bool
                 core_edits.append(edit)
                 rxn_core.update([a_start, a_end])
 
-    if use_h_labels:
+    if use_h_labels:    #是否使用h_labels,这里是使用
         if len(rxn_core) == 0:
             for atom in prod_mol.GetAtoms():
                 amap_num = atom.GetAtomMapNum()
-
+                #计算产物和反应物这个atom的氢原子数量
                 numHs_prod = atom.GetTotalNumHs()
                 numHs_reac = reac_mol.GetAtomWithIdx(reac_amap[amap_num]).GetTotalNumHs()
-
+                #如果这个atom的氢原子数量不一致，则加入core_edits和rxn_core中
                 if numHs_prod != numHs_reac:
                     edit = f"{amap_num}:{0}:{1.0}:{0.0}"
                     core_edits.append(edit)
@@ -179,7 +171,7 @@ def get_reaction_info(rxn_smi: str, kekulize: bool = False, use_h_labels: bool =
 
     if reac_mol is None or prod_mol is None:
         return None
-
+    #得到rxn_core, core_edits
     rxn_core, core_edits = get_reaction_core(r, p, kekulize=kekulize, use_h_labels=use_h_labels)
     #得到产物键的信息和原子标号信息
     prod_bonds = get_bond_info(prod_mol)
@@ -193,28 +185,29 @@ def get_reaction_info(rxn_smi: str, kekulize: bool = False, use_h_labels: bool =
 
     reac_amap = {atom.GetAtomMapNum(): atom.GetIdx() for atom in reac_mol.GetAtoms()}
 
+    #储存反应物和产物具有相同原子编号的原子，但这些原子没有参与反应，可以是离去基团
     visited = set([atom.GetIdx() for atom in reac_mol.GetAtoms()
                    if (atom.GetAtomMapNum() in p_amap_idx) and (atom.GetAtomMapNum() not in rxn_core)])
 
     lg_edits = []
-
+    #lg_edit：找到反应物中参与反应物的原子的邻居参与反应的原子键信息。加入到lg_edit中
     for atom in rxn_core:
-        root = reac_mol.GetAtomWithIdx(reac_amap[atom])
+        root = reac_mol.GetAtomWithIdx(reac_amap[atom]) #获取反应原子
         queue = deque([root])
 
-        while len(queue) > 0:
+        while len(queue) > 0:   #BFS，以反应节点出发进行BFS
             x = queue.popleft()
-            neis = x.GetNeighbors()
+            neis = x.GetNeighbors() #获取原子附近的邻居原子，并按原子索引进行排序
             neis = list(sorted(neis, key=lambda x: x.GetIdx()))
 
-            for y in neis:
+            for y in neis:  #遍历邻居原子
                 y_idx = y.GetIdx()
-                if y_idx in visited:
+                if y_idx in visited:    #如果邻居原子在没有参与反应的列表中，则跳过
                     continue
-
+                #frontier 是当前队列中的原子列表，用于检查新发现的邻居原子 y 是否已经与队列中的任何原子通过化学键连接。
                 frontier = [x] + [a for a in list(queue)]
                 y_neis = set([z.GetIdx() for z in y.GetNeighbors()])
-
+                #循环遍历 frontier 中的每个原子 z，并检查它是否与 y 通过化学键连接
                 for i,z in enumerate(frontier):
                     if z.GetIdx() in y_neis:
                         bo = reac_mol.GetBondBetweenAtoms(z.GetIdx(), y_idx).GetBondTypeAsDouble()
@@ -222,9 +215,11 @@ def get_reaction_info(rxn_smi: str, kekulize: bool = False, use_h_labels: bool =
                         bond = (amap1, amap2)
 
                         # The two checks are needed because the reaction core is not visited during BFS
+                        #如果 z 和 y 之间存在化学键，并且这个化学键的类型与产物中的化学键类型相同，则跳过
                         if bond in prod_bonds and (prod_bonds[bond][0] == bo):
                             continue
-
+                        #如果 z 和 y 之间的化学键在产物中存在但类型不同，或者不存在，则创建一个编辑字符串 edit，表示这个化学键的变化
+                        #bo表示反应物中该键的类型
                         elif (bond in prod_bonds) and (prod_bonds[bond][0] != bo) :
                             bo_old = prod_bonds[bond][0]
                             edit = f"{amap1}:{amap2}:{bo_old}:{bo}"
@@ -330,10 +325,11 @@ def extract_leaving_groups(mol_list: List[Tuple[Chem.Mol]]) -> Tuple[Dict, List[
 
         reac_mols, frag_mols = map_reac_and_frag(reac_mols, frag_mols)
 
+        #将多个分子对象合并成一个单一分子对象的过程
         r_mol = Chem.Mol()
         for mol in reac_mols:
             r_mol = Chem.CombineMols(r_mol, Chem.Mol(mol))
-
+        #遍历分子 p_mol 中的所有原子，并为每个原子设置显式氢原子的数量为0
         for atom in p_mol.GetAtoms():
             atom.SetNumExplicitHs(0)
 
@@ -341,7 +337,7 @@ def extract_leaving_groups(mol_list: List[Tuple[Chem.Mol]]) -> Tuple[Dict, List[
         r_amap_idx = {atom.GetAtomMapNum(): atom.GetIdx() for atom in r_mol.GetAtoms()}
 
         labels = []
-        for i, mol in enumerate(reac_mols):
+        for i, mol in enumerate(reac_mols): #遍历每个部分的反应物
             idxs = []
             attach_amaps = []
 

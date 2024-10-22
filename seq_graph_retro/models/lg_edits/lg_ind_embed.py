@@ -74,9 +74,9 @@ class LGIndEmbed(nn.Module):
                                             n_heads=config['n_heads'],
                                             bias=config['bias'])
 
-        lg_score_in_dim = 2 * config['mpn_size']
-        if self.toggles.get('use_prev_pred', False):
-            lg_score_in_dim += config['embed_size']
+        lg_score_in_dim = 2 * config['mpn_size']    #600
+        if self.toggles.get('use_prev_pred', False):    #True
+            lg_score_in_dim += config['embed_size'] #600+200
 
         self.lg_embedding = nn.Linear(in_features=len(self.lg_vocab),
                                       out_features=config['embed_size'],

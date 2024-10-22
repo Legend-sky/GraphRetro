@@ -81,20 +81,21 @@ class SingleEdit(nn.Module):
                                             n_heads=config['n_heads'],
                                             bias=config['bias'])
 
-        bond_score_in_dim = 2 * config['mpn_size']
-        unimol_score_in_dim = config['mpn_size']
+        bond_score_in_dim = 2 * config['mpn_size']  #512
+        unimol_score_in_dim = config['mpn_size']    #256
 
-        if self.toggles.get("use_prod", False):
-            add_dim = config['mpn_size']
+        if self.toggles.get("use_prod", False): #True
+            add_dim = config['mpn_size']    #256
             if self.toggles.get("use_concat", False):
                 add_dim *= config['depth']
-            bond_score_in_dim += add_dim
-            unimol_score_in_dim += add_dim
+            bond_score_in_dim += add_dim    #512+256
+            unimol_score_in_dim += add_dim  #256+256
 
         self.bond_score = build_mlp(in_dim=bond_score_in_dim,
-                               h_dim=config['mlp_size'],
-                               out_dim=config['bs_outdim'],
+                               h_dim=config['mlp_size'],    #512
+                               out_dim=config['bs_outdim'], #5
                                dropout_p=config['dropout_mlp'])
+        #FIXME：mlp隐藏层位置和输出层位置有误，python名字对了就行
         self.unimol_score = build_mlp(in_dim=unimol_score_in_dim,
                                       out_dim=1, h_dim=config['mlp_size'],
                                       dropout_p=config['dropout_mlp'])
@@ -138,7 +139,7 @@ class SingleEdit(nn.Module):
                              scopes: Tuple[List],  bg_inputs: torch.Tensor = None,
                              ha: torch.Tensor = None) -> Tuple[torch.Tensor]:
         """
-        Computes the edit logits.
+        Computes the edit logits.   
 
         Parameters
         ----------
@@ -240,20 +241,20 @@ class SingleEdit(nn.Module):
         """
         edit_labels = self.to_device(edit_labels)
 
-        prod_vecs, edit_logits = self(graph_tensors, scopes, bg_inputs)
-        if self.config['edit_loss'] == 'sigmoid':
+        prod_vecs, edit_logits = self(graph_tensors, scopes, bg_inputs) #调用模型的前向传播方法，接收图张量、作用域和背景输入，返回产品向量和编辑逻辑值
+        if self.config['edit_loss'] == 'sigmoid':   #计算损失
             loss_batch = [self.edit_loss(edit_logits[i].unsqueeze(0), edit_labels[i].unsqueeze(0)).sum()
                           for i in range(len(edit_logits))]
 
-        elif self.config['edit_loss'] == 'softmax':
+        elif self.config['edit_loss'] == 'softmax': #计算损失
             loss_batch = [self.edit_loss(edit_logits[i].unsqueeze(0),
                                             torch.argmax(edit_labels[i]).unsqueeze(0).long()).sum()
                           for i in range(len(edit_logits))]
         else:
             raise ValueError()
 
-        loss = torch.stack(loss_batch, dim=0).mean()
-        accuracy = get_accuracy_edits(edit_logits, edit_labels)
+        loss = torch.stack(loss_batch, dim=0).mean()    #计算平均损失
+        accuracy = get_accuracy_edits(edit_logits, edit_labels) #计算准确率
         metrics = {'loss': loss.item(), 'accuracy': accuracy.item()}
         return loss, metrics
 

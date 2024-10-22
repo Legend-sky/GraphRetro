@@ -40,6 +40,7 @@ def parse_info(rxns: List, rxn_classes: List, args: Any, mode: str = 'train') ->
 
     for idx, rxn_smi in enumerate(rxns):
         try:
+            #得到总反应信息get_reaction_info
             reaction_info = get_reaction_info(rxn_smi, kekulize=args.kekulize,
                                               use_h_labels=args.use_h_labels,
                                               rxn_class=int(rxn_classes[idx]))
@@ -67,6 +68,7 @@ def parse_info(rxns: List, rxn_classes: List, args: Any, mode: str = 'train') ->
             continue
 
         fragments = apply_edits_to_mol(Chem.Mol(products), reaction_info.core_edits)
+        #counter存储核心编辑次数，也就是p->r所需的操作次数
         counter.append(len(reaction_info.core_edits))
 
         if len(Chem.rdmolops.GetMolFrags(fragments)) != len(Chem.rdmolops.GetMolFrags(reactants)):
@@ -87,6 +89,7 @@ def parse_info(rxns: List, rxn_classes: List, args: Any, mode: str = 'train') ->
     print(f"All {mode} reactions complete.")
     sys.stdout.flush()
 
+    #将info_all的信息保存到‘.kekulized-share[0-4]’5个文件中
     info_file = os.path.join(save_dir, args.save_file)
     if args.kekulize:
         info_file += ".kekulized"

@@ -33,7 +33,7 @@ if __name__ == "__main__":
         lg_mols_file += "/h_labels/lg_mols.file"
     else:
         lg_mols_file += "/without_h_labels/lg_mols.file"
-    lg_mols = joblib.load(lg_mols_file)
+    lg_mols = joblib.load(lg_mols_file) #加载170个离去基团词汇库的mol
 
     graphs = []
     for idx, mol in enumerate(lg_mols):

@@ -12,22 +12,23 @@ ATOM_LIST = ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca', '
     'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb', 'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', \
     'Zn', 'H', 'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb', \
     'W', 'Ru', 'Nb', 'Re', 'Te', 'Rh', 'Ta', 'Tc', 'Ba', 'Bi', 'Hf', 'Mo', 'U', 'Sm', 'Os', 'Ir', \
-    'Ce','Gd','Ga','Cs', '*', 'unk']
+    'Ce','Gd','Ga','Cs', '*', 'unk']    #长度为65
 
-MAX_NB = 10
-DEGREES = list(range(MAX_NB))
-HYBRIDIZATION = [Chem.rdchem.HybridizationType.SP,
+MAX_NB = 10  #最大邻居数
+DEGREES = list(range(MAX_NB))   #0-9
+HYBRIDIZATION = [Chem.rdchem.HybridizationType.SP,      #化学键杂化类型,描述原子在分子中的几何形状
         Chem.rdchem.HybridizationType.SP2,
         Chem.rdchem.HybridizationType.SP3,
         Chem.rdchem.HybridizationType.SP3D,
-        Chem.rdchem.HybridizationType.SP3D2]
+        Chem.rdchem.HybridizationType.SP3D2]    
 
-FORMAL_CHARGE = [-1, -2, 1, 2, 0]
-VALENCE = [0, 1, 2, 3, 4, 5, 6]
-NUM_Hs = [0, 1, 3, 4, 5]
+FORMAL_CHARGE = [-1, -2, 1, 2, 0]   #形式电荷
+VALENCE = [0, 1, 2, 3, 4, 5, 6]     #价电子数
+NUM_Hs = [0, 1, 3, 4, 5]    
 
 BOND_TYPES = [None, Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE, \
     Chem.rdchem.BondType.TRIPLE, Chem.rdchem.BondType.AROMATIC]
+#键类型定义
 BOND_FLOAT_TO_TYPE = {
     0.0: BOND_TYPES[0],
     1.0: BOND_TYPES[1],
@@ -41,7 +42,7 @@ BOND_FLOATS = [0.0, 1.0, 2.0, 3.0, 1.5]
 RXN_CLASSES = list(range(10))
 
 ATOM_FDIM = len(ATOM_LIST) + len(DEGREES) + len(FORMAL_CHARGE) + len(HYBRIDIZATION) \
-            + len(VALENCE) + len(NUM_Hs) + 1
+            + len(VALENCE) + len(NUM_Hs) + 1    #65+10+5+5+7+5+1=98
 BOND_FDIM = 6
 BINARY_FDIM = 5 + BOND_FDIM
 INVALID_BOND = -1
@@ -90,7 +91,7 @@ def get_atom_features(atom: Chem.Atom, rxn_class: int = None, use_rxn_class: boo
         Whether to use reaction class as additional input
     """
     if atom.GetSymbol() == '*':
-        symbol = onek_encoding_unk(atom.GetSymbol(), ATOM_LIST)
+        symbol = onek_encoding_unk(atom.GetSymbol(), ATOM_LIST) #长度为65，除了*的位置为1，其他都是0
         if use_rxn_class:
             padding = [0] * (ATOM_FDIM + len(RXN_CLASSES)- len(symbol))
         else:
@@ -167,7 +168,7 @@ def get_bond_features(bond: Chem.Bond) -> np.ndarray:
     """
     bt = bond.GetBondType()
     bond_features = [float(bt == bond_type) for bond_type in BOND_TYPES[1:]]
-    bond_features.extend([float(bond.GetIsConjugated()), float(bond.IsInRing())])
+    bond_features.extend([float(bond.GetIsConjugated()), float(bond.IsInRing())])   #是否是共轭键，是否在环中
     bond_features = np.array(bond_features, dtype=np.float32)
     return bond_features
 

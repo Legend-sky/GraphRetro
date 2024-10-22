@@ -528,7 +528,7 @@ def edit_mol(prod_smi, edit, lg_groups):
 
     return rw_mol
 
-def generate_reac_set(prod_smi, edit, lg_groups, verbose=False):
+def generate_reac_set(prod_smi, edit, lg_groups, verbose=False):    
     azide_rule = AllChem.ReactionFromSmarts('[NH:2]=[N+:3]=[N-:4]>>[NH0-:2]=[N+:3]=[N-:4]')
     tmp_mol = Chem.MolFromSmiles(prod_smi)
     aromatic_co_adj_n = set()

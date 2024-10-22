@@ -103,7 +103,7 @@ class BeamSearch:
 
     def keep_topk_nodes(self, node_list):
         sorted_node_list = [copy_node(node) for node in node_list]
-        sorted_node_list = sorted(sorted_node_list, key=lambda x: x.prob, reverse=True)
+        sorted_node_list = sorted(sorted_node_list, key=lambda x: x.prob, reverse=True) #根据概率值降序排列
         if len(sorted_node_list) <= self.beam_width:
             return sorted_node_list
 
@@ -186,7 +186,7 @@ class BeamSearch:
         return new_list
 
     def run_search(self, prod_smi, max_steps=6, rxn_class=None):
-        with torch.no_grad():
+        with torch.no_grad():   #不进行梯度计算
             node_list = self.run_edit_step(prod_smi, rxn_class=rxn_class)
             new_node_list = [copy_node(node) for node in node_list]
             steps = 0
@@ -201,7 +201,7 @@ class BeamSearch:
         new_node_list = self.keep_topk_nodes(new_node_list)
         return new_node_list
 
-    def run_edit_step(self, prod_smi, rxn_class=None, **kwargs):
+    def run_edit_step(self, prod_smi, rxn_class=None, **kwargs):    #进行图编辑预测
         node_list = self.get_topk_edits(prod_smi, rxn_class=rxn_class)
         return self.remove_invalid_nodes(prod_smi, node_list, rxn_class=rxn_class)
 
@@ -241,9 +241,9 @@ class BeamSearch:
         frag_tensors = self.model.to_device(frag_tensors)
 
         if not hasattr(self.model, 'encoder'):
-            frag_vecs, _ = self.model.lg_net.encoder(frag_tensors, frag_scopes)
+            frag_vecs, _ = self.model.lg_net.encoder(frag_tensors, frag_scopes)     #从片段到离去基团的预测
         else:
-            frag_vecs, _ = self.model.encoder(frag_tensors, frag_scopes)
+            frag_vecs, _ = self.model.encoder(frag_tensors, frag_scopes)    
         frag_vecs = torch.nn.utils.rnn.pad_sequence(frag_vecs, batch_first=True)
         assert len(frag_vecs.shape) == 3
 
