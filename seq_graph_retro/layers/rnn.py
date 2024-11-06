@@ -31,12 +31,12 @@ class MPNLayer(nn.Module):
             Number of timesteps in the RNN
         """
         super(MPNLayer, self).__init__(**kwargs)
-        self.hsize = hsize
-        self.edge_fdim = edge_fdim
-        self.rnn_type = rnn_type
-        self.depth = depth
-        self.node_fdim = node_fdim
-        self.dropout_p = dropout_p
+        self.hsize = hsize          #300
+        self.edge_fdim = edge_fdim  #8
+        self.rnn_type = rnn_type    #gru
+        self.depth = depth          #10
+        self.node_fdim = node_fdim  #98
+        self.dropout_p = dropout_p  #0.15
         self._build_layers()
 
     def _build_layers(self) -> None:
