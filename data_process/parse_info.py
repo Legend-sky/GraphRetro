@@ -13,7 +13,7 @@ from seq_graph_retro.molgraph import MultiElement
 from seq_graph_retro.utils.chem import apply_edits_to_mol, get_mol
 from seq_graph_retro.utils import str2bool
 
-DATA_DIR = "./datasets/uspto-50k"
+DATA_DIR = "./datasets/uspto-full"
 
 
 def parse_info(rxns: List, rxn_classes: List, args: Any, mode: str = 'train') -> None:
@@ -128,7 +128,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_dir", default=DATA_DIR, help="Directory to parse from.")
-    parser.add_argument("--save_file", default="uspto_50k.info", help='Base filename to save')
+    parser.add_argument("--save_file", default="uspto_full.info", help='Base filename to save')
     parser.add_argument('--mode', required=True, help="Type of dataset being prepared.")
     parser.add_argument("--print_every", default=1000, type=int, help="Print during parsing.")
     parser.add_argument("--kekulize", type=str2bool, default=True, help='Whether to kekulize mols during training')
@@ -136,8 +136,13 @@ def main() -> None:
     args = parser.parse_args()
 
     rxn_key = "reactants>reagents>production"
-    filename = f"canonicalized_{args.mode}.csv"
+    filename = f"canonicalized_raw_{args.mode}.csv"
     df = pd.read_csv(os.path.join(args.data_dir, filename))
+    # 创建一个与df长度相同且值全为0的列
+    zeros_column = np.zeros(len(df))
+
+    # 将这个列添加到df中，列名为'class'
+    df['class'] = zeros_column
     parse_info(rxns=df[rxn_key], rxn_classes=df['class'], args=args, mode=args.mode)
 
 if __name__ == "__main__":

@@ -7,9 +7,10 @@ used to renumber the reactant atoms.
 from rdkit import Chem
 import os
 import argparse
+import threading
 import pandas as pd
 
-DATA_DIR = f"{os.environ['SEQ_GRAPH_RETRO']}/datasets/uspto-50k/"
+DATA_DIR = f"{os.environ['SEQ_GRAPH_RETRO']}/datasets/uspto-full/"  #使用full的数据集
 
 def canonicalize_prod(p):
     import copy
@@ -28,18 +29,17 @@ def remove_amap_not_in_product(rxn_smi):
     after the canonicalization step.
     """
     r, p = rxn_smi.split(">>")
-
     pmol = Chem.MolFromSmiles(p)
+    if pmol is None:
+        print("Error: pmol is None", flush=True)
+        return None
     pmol_amaps = set([atom.GetAtomMapNum() for atom in pmol.GetAtoms()])
     max_amap = max(pmol_amaps) #Atoms only in reactants are labelled starting with max_amap
 
     rmol  = Chem.MolFromSmiles(r)
-
-    for atom in rmol.GetAtoms():
-        amap_num = atom.GetAtomMapNum()
-        if amap_num not in pmol_amaps:
-            atom.SetAtomMapNum(max_amap+1)
-            max_amap += 1
+    if rmol is None:
+        print("Error: rmol is None", flush=True)
+        return None
 
     r_updated = Chem.MolToSmiles(rmol)
     rxn_smi_updated = r_updated + ">>" + p
@@ -60,7 +60,7 @@ def canonicalize(smiles):
 def infer_correspondence(p):
     orig_mol = Chem.MolFromSmiles(p)
     canon_mol = Chem.MolFromSmiles(canonicalize_prod(p))
-    matches = list(canon_mol.GetSubstructMatches(orig_mol))[0]
+    matches = list(canon_mol.GetSubstructMatches(orig_mol))[0]  #这里分子太长子结构匹配会进入死循环
     idx_amap = {atom.GetIdx(): atom.GetAtomMapNum() for atom in orig_mol.GetAtoms()}
 
     correspondence = {}
@@ -86,6 +86,17 @@ def remap_rxn_smi(rxn_smi):
     rxn_smi_new = Chem.MolToSmiles(rmol) + ">>" + Chem.MolToSmiles(canon_mol)
     return rxn_smi_new, correspondence
 
+def timeout_remap(rxn_smi_new, uspto_id):
+    # 如果remap_rxn_smi执行超过一分钟，则跳过
+    timer = threading.Timer(60, lambda: print(f"remap_rxn_smi执行超过一分钟，跳过 {uspto_id}"))
+    timer.start()
+    try:
+        rxn_smi_new, _ = remap_rxn_smi(rxn_smi_new)
+    except Exception as e:
+        print(f"Error in remap_rxn_smi: {e}")
+    finally:
+        timer.cancel()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -97,15 +108,28 @@ def main():
     df = pd.read_csv(f"{args.data_dir}/{args.filename}")
     print(f"Processing file of size: {len(df)}")
 
-    new_dict = {'id': [], 'class': [], 'reactants>reagents>production': []}
+    new_dict = {'id': [], 'reactants>reagents>production': []}
     for idx in range(len(df)):
+        if idx % 10000 == 0:
+            print(f"Processing {idx}")
         element = df.loc[idx]
-        uspto_id, class_id, rxn_smi = element['id'], element['class'], element['reactants>reagents>production']
-        
+        # uspto_id, class_id, rxn_smi = element['id'], element['class'], element['reactants>reagents>production']
+        #USPTO-FULL数据集中没有class列
+        uspto_id, rxn_smi = element['id'], element['reactants>reagents>production']
+        r, p = rxn_smi.split(">>")
+        if r=='' or p=='' or len(p)>800:  #如果反应物或产物为空或者长度超过1000，则跳过
+            continue
+        # print(rxn_smi)
         rxn_smi_new = remove_amap_not_in_product(rxn_smi)   #移除不在产物p中的反应物r中的原子map
-        rxn_smi_new, _ = remap_rxn_smi(rxn_smi_new)         #重新map反应物r中的原子map
+        if rxn_smi_new == None: #如果返回的产物为空，则跳过
+            continue
+
+        # 使用线程监控remap_rxn_smi的执行时间
+        threading.Thread(target=timeout_remap, args=(rxn_smi_new, uspto_id)).start()
+        
+        # rxn_smi_new, _ = remap_rxn_smi(rxn_smi_new)         #重新map反应物r中的原子map
         new_dict['id'].append(uspto_id)
-        new_dict['class'].append(class_id)
+        # new_dict['class'].append(class_id)
         new_dict['reactants>reagents>production'].append(rxn_smi_new)
 
     new_df = pd.DataFrame.from_dict(new_dict)
