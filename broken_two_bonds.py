@@ -250,7 +250,7 @@ for id,smile in enumerate(smiles):
         step += 1
 
     tmp_list2 = beam_model.keep_topk_nodes_new(tmp_list2)  # 选最靠谱的 5 个   现在的tmp_list2元组表示
-
+    tmp_list2 = tmp_list2[:len(rxn1)]
     print('\nstep\n')
 
     for beam_idx, node in enumerate(tmp_list2):
