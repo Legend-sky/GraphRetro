@@ -624,6 +624,7 @@ def generate_reac_set(prod_smi, edit, lg_groups, verbose=False):
                 atom.SetNumExplicitHs(0)
 
     reac_smi = Chem.MolToSmiles(reac_mol)
+    reac_smi_no_canonicalize = reac_smi
     reac_smi = canonicalize(reac_smi)
 
     reac_mols = [Chem.MolFromSmiles(smi) for smi in reac_smi.split(".")]
@@ -637,4 +638,4 @@ def generate_reac_set(prod_smi, edit, lg_groups, verbose=False):
     reac_set = set([Chem.MolToSmiles(mol) for mol in reac_mols if mol is not None])
     if verbose:
         print("Generated Reactants: ", reac_set)
-    return reac_set
+    return reac_set, reac_smi_no_canonicalize

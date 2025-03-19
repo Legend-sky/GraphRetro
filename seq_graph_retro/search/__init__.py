@@ -109,6 +109,15 @@ class BeamSearch:
 
         sorted_node_list = sorted_node_list[:self.beam_width]
         return sorted_node_list
+    
+    def keep_topk_nodes_new(self, node_list):
+        indexed_node_list = [(index, copy_node(node)) for index, node in enumerate(node_list)]
+        sorted_node_list = sorted(indexed_node_list, key=lambda x: x[1].prob, reverse=True)
+        if len(sorted_node_list) <= self.beam_width:
+            return sorted_node_list
+
+        sorted_node_list = sorted_node_list[:self.beam_width]
+        return sorted_node_list
 
     def get_topk_edits(self, prod_smi, rxn_class=None, **kwargs):
         mol = Chem.MolFromSmiles(prod_smi)
@@ -187,7 +196,7 @@ class BeamSearch:
 
     def run_search(self, prod_smi, max_steps=6, rxn_class=None):
         with torch.no_grad():   #不进行梯度计算
-            node_list = self.run_edit_step(prod_smi, rxn_class=rxn_class)
+            node_list = self.run_edit_step(prod_smi, rxn_class=rxn_class)   # 预测的反应中心
             new_node_list = [copy_node(node) for node in node_list]
             steps = 0
 
@@ -205,7 +214,7 @@ class BeamSearch:
         node_list = self.get_topk_edits(prod_smi, rxn_class=rxn_class)
         return self.remove_invalid_nodes(prod_smi, node_list, rxn_class=rxn_class)
 
-    def _create_lg_node(self, prod_smi, node, rxn_class=None):
+    def _create_lg_node(self, prod_smi, node, rxn_class=None):   #创建离去基团节点
         new_node = copy_node(node)
         mol = Chem.MolFromSmiles(prod_smi)
 
@@ -226,12 +235,12 @@ class BeamSearch:
             prod_vecs, _ = self.model.lg_net.encoder(prod_tensors, prod_scopes)
             new_node.prod_vecs = prod_vecs.clone()
 
-        fragments = apply_edits_to_mol(Chem.Mol(mol), new_node.edit)
+        fragments = apply_edits_to_mol(Chem.Mol(mol), new_node.edit)    # 应用断键，得到对应合成子
         tmp_frags = MultiElement(Chem.Mol(fragments)).mols
 
         fragments = Chem.Mol()
         for mol in tmp_frags:
-            fragments = Chem.CombineMols(fragments, mol)
+            fragments = Chem.CombineMols(fragments, mol)    # 组合合成子
 
         frag_graph = MultiElement(mol=Chem.Mol(fragments), rxn_class=rxn_class)
         frag_tensors, frag_scopes = pack_graph_feats([frag_graph],
@@ -253,7 +262,7 @@ class BeamSearch:
             assert frag_vecs.shape[-1] == self.model.config['mpn_size']
         new_node.num_fragments = frag_vecs.size(1)
         new_node.frag_vecs = frag_vecs.clone()
-        return new_node
+        return new_node, fragments
 
     def add_lg_to_node(self, node):
         new_node = copy_node(node)
