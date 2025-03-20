@@ -139,7 +139,8 @@ print('束搜索宽度',args.beam_width)
 beam_model = BeamSearch(model=rm, beam_width=args.beam_width, max_edits=1)  #加载束搜索模型
 
 # smiles = ['CCNC(=O)CCC/C=C\C[C@H]1[C@H](C[C@H]([C@@H]1/C=C/[C@H](CCC2=CC=CC=C2)O)O)O']
-smiles = ['COC1=CC=C(N2N=C(C3=C2C(N(C4=CC=C(N5CCCCC5=O)C=C4)CC3)=O)C(N)=O)C=C1']
+# smiles = ['COC1=CC=C(N2N=C(C3=C2C(N(C4=CC=C(N5CCCCC5=O)C=C4)CC3)=O)C(N)=O)C=C1']
+smiles = ['C[C@@]12[C@@](C(SCF)=O)([C@@H](C[C@]1([C@@]3(C[C@@H](C4=CC(C=C[C@@]4([C@]3([C@H](C2)O)F)C)=O)F)[H])[H])C)OC(CC)=O']
 
 def check_nodes_complete(node_list):
     for node in node_list:
@@ -157,8 +158,8 @@ for id,smile in enumerate(smiles):
     # node_list=beam_model.run_edit_step(p)  # 预测反应中心
     node_list=[]
     node_list.append(BeamNode(mol=Chem.Mol(mol)))     # [BeamNode(mol=Chem.Mol(mol))
-    node_list[0].edit=['6:7:1.0:0.0']
-    edit_2 = '17:18:1.0:0.0'
+    node_list[0].edit=['15:16:1.0:0.0']
+    edit_2 = '28:30:1.0:0.0'
     # print('模型预测的断键：',node_list[0].edit)
     new_node_list = []
     step = 0
@@ -211,27 +212,34 @@ for id,smile in enumerate(smiles):
         except BaseException as e:
             print(e, flush=True)
             continue
-        # 判断第二次断键的片段在哪个合成子中，对其直接进行第二次断键
-        if a1 in frag_amaps[0] and a2 in frag_amaps[0]:
-            print('frag_amaps[0]')
-            sml = frag_1[0]
-            frag_FirstToSecond.append(sml)
-            mol = Chem.MolFromSmiles(sml)
+        if new_node_list[0].num_fragments == 1:
+            frag_FirstToSecond.append(reac_smi_no_canonicalize)
+            mol = Chem.MolFromSmiles(reac_smi_no_canonicalize)
             node_list.append(BeamNode(mol=Chem.Mol(mol)))
             node_list[1].edit = [edit_2]
-            new_node, _ = beam_model._create_lg_node(sml, node_list[1], rxn_class=None)
+            new_node, _ = beam_model._create_lg_node(reac_smi_no_canonicalize, node_list[1], rxn_class=None)
             tmp_list2.append(new_node)
-        elif a1 in frag_amaps[1] and a2 in frag_amaps[1]:
-            print('frag_amaps[1]')
-            # sml = canonicalize_prod(fragments_new2[0][1])
-            sml = frag_1[1]
-            frag_FirstToSecond.append(sml)
-            mol = Chem.MolFromSmiles(sml)
-            node_list.append(BeamNode(mol=Chem.Mol(mol)))
-            node_list[1].edit = [edit_2]
-            new_node, _ = beam_model._create_lg_node(sml, node_list[1], rxn_class=None)
-            tmp_list2.append(new_node)
-        print('第二次断键选择的第一次的合成子sml',sml)
+        elif new_node_list[0].num_fragments == 2:
+            if a1 in frag_amaps[0] and a2 in frag_amaps[0]:
+                print('frag_amaps[0]')
+                sml = frag_1[0]
+                frag_FirstToSecond.append(sml)
+                mol = Chem.MolFromSmiles(sml)
+                node_list.append(BeamNode(mol=Chem.Mol(mol)))
+                node_list[1].edit = [edit_2]
+                new_node, _ = beam_model._create_lg_node(sml, node_list[1], rxn_class=None)
+                tmp_list2.append(new_node)
+            elif a1 in frag_amaps[1] and a2 in frag_amaps[1]:
+                print('frag_amaps[1]')
+                # sml = canonicalize_prod(fragments_new2[0][1])
+                sml = frag_1[1]
+                frag_FirstToSecond.append(sml)
+                mol = Chem.MolFromSmiles(sml)
+                node_list.append(BeamNode(mol=Chem.Mol(mol)))
+                node_list[1].edit = [edit_2]
+                new_node, _ = beam_model._create_lg_node(sml, node_list[1], rxn_class=None)
+                tmp_list2.append(new_node)
+            print('第二次断键选择的第一次的合成子sml',sml)
 
         if len(pred_list)>1:
             rxn1.append(pred_list[0]+'.'+pred_list[1])
@@ -253,6 +261,16 @@ for id,smile in enumerate(smiles):
     tmp_list2 = tmp_list2[:len(rxn1)]
     print('\nstep\n')
 
+    # 把rxn1里面要分解的合成子去掉
+    if new_node_list[0].num_fragments == 1:
+        rxn1 = []
+    elif new_node_list[0].num_fragments == 2:
+        for id, x in enumerate(frag_FirstToSecond):
+            x = canonicalize(x)
+            y = rxn1[id].split('.')
+            y.remove(x)
+            rxn1[id] = y[0]
+
     for beam_idx, node in enumerate(tmp_list2):
         pred_edit = node[1].edit
         pred_label = node[1].lg_groups
@@ -260,13 +278,6 @@ for id,smile in enumerate(smiles):
         choose_num = map_value_to_category(node[0])
         print('choose_num',choose_num)  # 哪一个 【目标合成子】
 
-        # 删除不需要的合成子
-        aaa = frag_FirstToSecond[choose_num]
-        aaa = canonicalize(aaa)
-
-        bbb = rxn1[choose_num].split('.')
-        bbb.remove(aaa)
-        rxn1[choose_num] = bbb[0]
         sml = frag_FirstToSecond[choose_num]
 
         print('pred_edit',pred_edit)
@@ -288,6 +299,11 @@ for id,smile in enumerate(smiles):
             rxn2.append(pred_list[0]+'.'+pred_list[1])
         else:
             rxn2.append(pred_list[0])
+        
+        if new_node_list[0].num_fragments == 1:
+            rxn.append(rxn2[beam_idx])
+        elif new_node_list[0].num_fragments == 2:
+            rxn.append(rxn1[choose_num]+'.'+rxn2[beam_idx])
 
 for i in range(len(rxn1)):
     rxn.append(rxn1[i]+'.'+rxn2[i])
